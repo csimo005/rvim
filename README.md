@@ -12,7 +12,7 @@ A rust based reimplementation of the basics of vim, made as a personal learning 
 - [x] Scroll up and down the lines of the file
 - [x] Scroll across the lines of the files
 - [ ] Jump and arbitary number of characters in any direction
-- [ ] Jump to the start or end of the file
+- [x] Jump to the start or end of the file
 - [ ] Basic search functionality (literal match only)
 
 ### File Editing
@@ -21,3 +21,7 @@ A rust based reimplementation of the basics of vim, made as a personal learning 
 - [ ] Copy, Cut, Paste
 - [ ] Writing and Overwriting files
 - [ ] Search and replace
+
+## Known Issues
+- Text mode command parsing has no way to flush unused keys
+- Cursor movement between different length lines doesn't match vim behavior
