@@ -8,6 +8,8 @@ pub enum TextCommand {
     CursorDown(u16),
     CursorLeft(u16),
     CursorRight(u16),
+    JumpTop,
+    JumpBottom,
 }
 
 pub struct TextView {
@@ -107,6 +109,9 @@ impl TextView {
                     self.cursor.row += y;
                 } else {
                     self.offset.row += 1;
+                    if ((self.offset.row + self.cursor.row + 1) as usize) >= self.text.lines() {
+                        self.offset.row = (self.text.lines() - (self.sz.row as usize) - 1) as u16;
+                    }
                     self.cursor.row = self.sz.row - 1;
                     self.refresh_text();
                 }
@@ -138,6 +143,37 @@ impl TextView {
                         self.cursor.col = 5;
                     }
                 }
+            }
+            TextCommand::JumpTop => {
+                self.cursor.row = 0;
+                self.offset.row = 0;
+                
+                if self.cursor.col >= 5 + self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() as u16 {
+                    if self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() > 0 {
+                        self.cursor.col = 4 + self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() as u16;
+                    } else {
+                        self.cursor.col = 5;
+                    }
+                }
+                self.refresh_text();
+            },
+            TextCommand::JumpBottom => {
+                if self.text.lines() > (self.sz.row as usize) {
+                    self.offset.row = (self.text.lines() - (self.sz.row as usize) - 1) as u16;
+                    self.cursor.row = self.sz.row - 1;
+                } else {
+                    self.cursor.row = self.text.lines() as u16;
+                }
+                
+                if self.cursor.col >= 5 + self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() as u16 {
+                    if self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() > 0 {
+                        self.cursor.col = 4 + self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() as u16;
+                    } else {
+                        self.cursor.col = 5;
+                    }
+                }
+                self.refresh_text();
+                
             }
         }
     }

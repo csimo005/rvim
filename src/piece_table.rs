@@ -219,6 +219,10 @@ impl PieceTable {
             return None
         }
     }
+
+    pub fn lines(&self) -> usize {
+        self.line_starts.len()
+    }
 }
 
 #[cfg(test)]

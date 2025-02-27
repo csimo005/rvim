@@ -118,6 +118,16 @@ impl CommandView {
                             self.txt_cmds.push_front(TextCommand::CursorRight(1));
                             self.cmd.drain(0..1);
                         },
+                        Key::Char('g') => {
+                            if self.cmd.len() > 1 && self.cmd[1] == Key::Char('g') {
+                                self.txt_cmds.push_front(TextCommand::JumpTop);
+                                self.cmd.drain(0..2);
+                            }
+                        }
+                        Key::Char('G') => {
+                            self.txt_cmds.push_front(TextCommand::JumpBottom);
+                            self.cmd.drain(0..1);
+                        }
                         Key::Char(_) => {
                             let mut i = 0;
                             while i < self.cmd.len() {
