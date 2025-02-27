@@ -12,28 +12,40 @@ struct PieceTableEntry {
 }
 
 pub struct PieceTable {
-    original_buffer: String,
-    add_buffer: String,
+    original_buffer: Vec<char>,
+    add_buffer: Vec<char>,
     piece_table: Vec<PieceTableEntry>,
     length: usize,
+    line_starts: Vec<usize>,
 }
 
 impl PieceTable {
     pub fn new(original_buffer: &str) -> Self {
+        let line_starts: Vec<usize> = std::iter::once(0)
+            .chain(
+                original_buffer.chars().enumerate().filter_map(|(i, c)| if c == '\n' {
+                       Some(i+1)
+                   } else {
+                       None
+                   }
+        )).collect();
+
+
         let og_entry = PieceTableEntry {
             buffer: PieceTableBuffers::Original,
             start_index: 0,
             length: original_buffer.len(),
         };
         PieceTable {
-            original_buffer: original_buffer.to_string(),
-            add_buffer: String::new(),
+            original_buffer: original_buffer.chars().collect(),
+            add_buffer: Vec::<char>::new(),
             piece_table: vec![og_entry],
             length: original_buffer.len(),
+            line_starts
         }
     }
 
-    pub fn index(&self, idx: usize) -> char {
+    pub fn index(&self, idx: usize) -> Option<char> {
         let entry_idx = self.find_entry(idx);
 
         let mut offset: usize = 0;
@@ -45,8 +57,8 @@ impl PieceTable {
 
         let n = self.piece_table[entry_idx].start_index + (idx - offset);
         match self.piece_table[entry_idx].buffer {
-            PieceTableBuffers::Original => self.original_buffer.chars().nth(n).unwrap(),
-            PieceTableBuffers::Add => self.add_buffer.chars().nth(n).unwrap(),
+            PieceTableBuffers::Original => Some(self.original_buffer[n]),
+            PieceTableBuffers::Add => Some(self.add_buffer[n]),
         }
     }
 
@@ -120,6 +132,20 @@ impl PieceTable {
         }
         self.add_buffer.push(c);
         self.length += 1;
+
+        if c == '\n' {
+            let mut ln_idx = 0;
+            while self.line_starts[ln_idx] < idx && ln_idx < self.line_starts.len() {
+                ln_idx += 1;
+            }
+
+            self.line_starts.insert(ln_idx, idx);
+            ln_idx += 1;
+
+            while ln_idx < self.line_starts.len() {
+                self.line_starts[ln_idx] += 1;
+            }
+        }
     }
 
     pub fn delete(&mut self, idx: usize) {
@@ -132,7 +158,6 @@ impl PieceTable {
             }
         }
 
-        println!("{idx}, {offset}");
         if (idx - offset) == 0 {
             self.piece_table[entry_idx].start_index += 1;
             self.piece_table[entry_idx].length -= 1;
@@ -173,6 +198,26 @@ impl PieceTable {
 
     pub fn is_empty(&self) -> bool {
         self.length == 0
+    }
+
+    pub fn get_line(&self, line_number: usize) -> Option<Vec<char>> {
+        if line_number + 1 < self.line_starts.len() {
+            Some((self.line_starts[line_number]..(self.line_starts[line_number+1]-1)).filter_map(|i| self.index(i)).collect())
+        } else if line_number < self.line_starts.len() {
+            Some((self.line_starts[line_number]..self.length).filter_map(|i| self.index(i)).collect())
+        } else {
+            return None
+        }
+    }
+    
+    pub fn get_line_length(&self, line_number: usize) -> Option<usize> {
+        if line_number + 1 < self.line_starts.len() {
+            Some(self.line_starts[line_number+1] - self.line_starts[line_number] - 1)
+        } else if line_number < self.line_starts.len() {
+            Some(self.length - self.line_starts[line_number] + 1)
+        } else {
+            return None
+        }
     }
 }
 
