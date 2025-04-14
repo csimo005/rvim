@@ -8,13 +8,14 @@ use crate::views::View;
 use crate::app::ApplicationCommand;
 use crate::views::text_view::TextCommand;
 
-enum CommandViewState {
-    TxtCommand,
-    AppCommand,
+enum CommandViewModes {
+    NormalMode,
+    InsertMode,
+    CommandLineMode,
 }
 
 pub struct CommandView {
-    state: CommandViewState,
+    state: CommandViewModes,
     cmd: Vec<Key>,
     txt_cmds: VecDeque::<TextCommand>,
     app_cmds: VecDeque::<ApplicationCommand>,
@@ -27,7 +28,7 @@ pub struct CommandView {
 impl CommandView {
     pub fn new() -> Self {
         Self {
-            state: CommandViewState::TxtCommand,
+            state: CommandViewModes::NormalMode,
             cmd: Vec::<Key>::new(),
             txt_cmds: VecDeque::<TextCommand>::new(),
             app_cmds: VecDeque::<ApplicationCommand>::new(),
@@ -60,6 +61,32 @@ impl CommandView {
     }
 
     fn refresh_view(&mut self) {
+        match self.state {
+            CommandViewModes::NormalMode => {
+                let placeholder = "-- Normal --";
+                for (i, c) in placeholder.chars().enumerate() {
+                    if i < (self.sz.col as usize) {
+                        self.view[i] = c;
+                    }
+                }
+            },
+            CommandViewModes::InsertMode => {
+                let placeholder = "-- Insert --";
+                for (i, c) in placeholder.chars().enumerate() {
+                    if i < (self.sz.col as usize) {
+                        self.view[i] = c;
+                    }
+                }
+            }
+            CommandViewModes::CommandLineMode => {
+                for c in 0..(self.sz.col as usize) {
+                    if self.view[c] != ' ' {
+                        self.view[c] = ' ';
+                    }
+                }
+                self.view[0] = ':';
+            }
+        }
     }
 
     fn parse_app_command(&self, s: &str) -> Result<ApplicationCommand, &'static str> {
@@ -72,23 +99,51 @@ impl CommandView {
         Err("Unknown command")
     }
 
+    fn parse_txt_command(&mut self) {
+        while !self.cmd.is_empty() {
+            match self.cmd[0] {
+                Key::Char(':') => {
+                    return;
+                },
+                Key::Char('h') => {
+                    self.txt_cmds.push_front(TextCommand::CursorLeft(1));
+                    self.cmd.drain(0..1);
+                },
+                Key::Char('j') => {
+                    self.txt_cmds.push_front(TextCommand::CursorDown(1));
+                    self.cmd.drain(0..1);
+                },
+                Key::Char('k') => {
+                    self.txt_cmds.push_front(TextCommand::CursorUp(1));
+                    self.cmd.drain(0..1);
+                },
+                Key::Char('l') => {
+                    self.txt_cmds.push_front(TextCommand::CursorRight(1));
+                    self.cmd.drain(0..1);
+                },
+                Key::Char('i') => {
+                    self.state = CommandViewModes::InsertMode;
+                    self.refresh_view();
+                    self.cmd.drain(0..1);
+                    return;
+                }
+                _ => {
+                    self.cmd.drain(0..1);
+                }
+            }
+        }
+    }
+
     fn parse_commands(&mut self) {
         if !self.cmd.is_empty() {
             match self.state {
-                CommandViewState::TxtCommand => {
+                CommandViewModes::NormalMode => {
                     match self.cmd[0] {
                         Key::Char(':') => {
                             self.app_cmds.push_front(ApplicationCommand::FocusCommand);
-                            self.state = CommandViewState::AppCommand;
-                            for c in 0..(self.sz.col as usize) {
-                                if self.view[c] != ' ' {
-                                    self.view[c] = ' ';
-                                    self.updates[c] = true;
-                                }
-                            }
+                            self.state = CommandViewModes::CommandLineMode;
+                            self.refresh_view();
 
-                            self.view[0] = ':';
-                            self.updates[0] = true;
                             self.cursor.col = 1;
                             self.cmd.drain(0..1);
 
@@ -102,47 +157,28 @@ impl CommandView {
                                 }
                             }
                         }
-                        Key::Char('h') => {
-                            self.txt_cmds.push_front(TextCommand::CursorLeft(1));
-                            self.cmd.drain(0..1);
-                        },
-                        Key::Char('j') => {
-                            self.txt_cmds.push_front(TextCommand::CursorDown(1));
-                            self.cmd.drain(0..1);
-                        },
-                        Key::Char('k') => {
-                            self.txt_cmds.push_front(TextCommand::CursorUp(1));
-                            self.cmd.drain(0..1);
-                        },
-                        Key::Char('l') => {
-                            self.txt_cmds.push_front(TextCommand::CursorRight(1));
-                            self.cmd.drain(0..1);
-                        },
-                        Key::Char('g') => {
-                            if self.cmd.len() > 1 && self.cmd[1] == Key::Char('g') {
-                                self.txt_cmds.push_front(TextCommand::JumpTop);
-                                self.cmd.drain(0..2);
-                            }
-                        }
-                        Key::Char('G') => {
-                            self.txt_cmds.push_front(TextCommand::JumpBottom);
-                            self.cmd.drain(0..1);
-                        }
                         Key::Char(_) => {
-                            let mut i = 0;
-                            while i < self.cmd.len() {
-                                if self.cmd[i] == Key::Esc {
-                                    self.cmd.drain(..=i);
-                                    i = 0;
-                                }
-                                i += 1;
-                            }
-                            
+                            self.parse_txt_command();
                         }
                         _ => (),
                     }
                 },
-                CommandViewState::AppCommand => {
+                CommandViewModes::InsertMode => {
+                    while !self.cmd.is_empty() {
+                        match self.cmd[0] {
+                            Key::Esc => {
+                                self.cmd.drain(0..1);
+                                self.state = CommandViewModes::NormalMode;
+                                self.refresh_view();
+                                break;
+                            },
+                            _ => {
+                                self.cmd.drain(0..1);
+                            },
+                        }
+                    }
+                },
+                CommandViewModes::CommandLineMode => {
                     let mut i = 0;
                     while i < self.cmd.len() {
                         match self.cmd[i] {
@@ -164,7 +200,8 @@ impl CommandView {
                                     Err(_e) => (),
                                 }
                                 self.app_cmds.push_front(ApplicationCommand::FocusText);
-                                self.state = CommandViewState::TxtCommand;
+                                self.state = CommandViewModes::NormalMode;
+                                self.refresh_view();
                             }
                             Key::Char(c) => {
                                 if i+1 < (self.sz.col as usize) && self.view[i+1] != c {
@@ -181,7 +218,8 @@ impl CommandView {
                                     self.updates[i] = true;
                                 
                                     self.app_cmds.push_front(ApplicationCommand::FocusText);
-                                    self.state = CommandViewState::TxtCommand;
+                                    self.state = CommandViewModes::NormalMode;
+                                    self.refresh_view();
                                     break;
                                 } else {
                                     self.cmd.drain(i-1..=i);
@@ -199,7 +237,8 @@ impl CommandView {
 
                                 self.cmd.drain(..=i);
                                 self.app_cmds.push_front(ApplicationCommand::FocusText);
-                                self.state = CommandViewState::TxtCommand;
+                                self.state = CommandViewModes::NormalMode;
+                                self.refresh_view();
                                 break;
                             }
                             _ => (),
