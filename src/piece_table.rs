@@ -145,10 +145,10 @@ impl PieceTable {
         // If new character is newline, then insert its index into line_starts
         if c == '\n' {
             let mut ln_idx = 0;
-            while ln_idx < self.line_starts.len() && self.line_starts[ln_idx] < idx {
+            while ln_idx < self.line_starts.len() && self.line_starts[ln_idx] < (idx + 1) {
                 ln_idx += 1;
             }
-            self.line_starts.insert(ln_idx, idx);
+            self.line_starts.insert(ln_idx, idx + 1);
         }
     }
 
