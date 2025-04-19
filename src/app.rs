@@ -38,7 +38,7 @@ impl App {
 
         let win_sz = match terminal_size() {
             Ok(res) => res,
-            Err(_) => panic!(),
+            Err(e) => panic!("{e:?}\nThis may be caused by redirecting stdout."),
         };
 
         Self {
