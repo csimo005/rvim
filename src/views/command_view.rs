@@ -160,7 +160,9 @@ impl CommandView {
                         Key::Char(_) => {
                             self.parse_txt_command();
                         }
-                        _ => (),
+                        _ => {
+                            self.cmd.drain(0..1);
+                        },
                     }
                 },
                 CommandViewModes::InsertMode => {
@@ -172,6 +174,10 @@ impl CommandView {
                                 self.refresh_view();
                                 break;
                             },
+                            Key::Char(c) => {
+                                self.txt_cmds.push_front(TextCommand::Insert(c));
+                                self.cmd.drain(0..1);
+                            }
                             _ => {
                                 self.cmd.drain(0..1);
                             },

@@ -30,7 +30,6 @@ impl PieceTable {
                    }
         )).collect();
 
-
         let og_entry = PieceTableEntry {
             buffer: PieceTableBuffers::Original,
             start_index: 0,
@@ -45,9 +44,9 @@ impl PieceTable {
         }
     }
 
-    pub fn index(&self, idx: usize) -> Option<char> {
-        let entry_idx = self.find_entry(idx);
-
+    pub fn index(&self, idx: usize) -> char {
+        assert!(idx < self.length, "PieceTable::index, Tried to access index {}, which is beyond length of {}", idx, self.length);
+        let entry_idx = self.find_entry(idx).expect("PieceTable::index, Failed to find entry for index.");
         let mut offset: usize = 0;
         if entry_idx > 0 {
             for i in 0..entry_idx {
@@ -55,15 +54,16 @@ impl PieceTable {
             }
         }
 
-        let n = self.piece_table[entry_idx].start_index + (idx - offset);
+        let n = idx - offset;
         match self.piece_table[entry_idx].buffer {
-            PieceTableBuffers::Original => Some(self.original_buffer[n]),
-            PieceTableBuffers::Add => Some(self.add_buffer[n]),
+            PieceTableBuffers::Original => self.original_buffer[self.piece_table[entry_idx].start_index + n],
+            PieceTableBuffers::Add => self.add_buffer[self.piece_table[entry_idx].start_index + n],
         }
     }
 
     pub fn insert(&mut self, idx: usize, c: char) {
-        if idx == self.length {
+        assert!(idx <= self.length, "PieceTabe::insert, Tried to insert character at {idx} with file length {}.", self.length);
+        if idx == self.length { // Append to end of file
             let end_idx = self.piece_table.len() - 1;
             if self.piece_table[end_idx].buffer == PieceTableBuffers::Add
                 && self.piece_table[end_idx].start_index + self.piece_table[end_idx].length
@@ -79,8 +79,7 @@ impl PieceTable {
                 self.piece_table.push(new_entry);
             }
         } else {
-            let entry_idx = self.find_entry(idx);
-
+            let entry_idx = self.find_entry(idx).expect("PieceTable::insert, Failed to find entry for index.");
             let mut offset: usize = 0;
             if entry_idx > 0 {
                 for i in 0..entry_idx {
@@ -88,15 +87,14 @@ impl PieceTable {
                 }
             }
 
-            if entry_idx > 0
-                && (idx - offset) == 0
-                && self.piece_table[entry_idx - 1].buffer == PieceTableBuffers::Add
-                && self.piece_table[entry_idx - 1].start_index
-                    + self.piece_table[entry_idx - 1].length
+            if entry_idx > 0 && self.piece_table[entry_idx-1].buffer == PieceTableBuffers::Add
+                && idx - offset == 0
+                && self.piece_table[entry_idx-1].start_index
+                    + self.piece_table[entry_idx-1].length
                     == self.add_buffer.len()
             {
                 // In this case we can extend the entry length
-                self.piece_table[entry_idx - 1].length += 1;
+                self.piece_table[entry_idx-1].length += 1;
             } else if idx - offset == 0 {
                 let new_entry = PieceTableEntry {
                     buffer: PieceTableBuffers::Add,
@@ -104,7 +102,7 @@ impl PieceTable {
                     length: 1,
                 };
                 self.piece_table.insert(entry_idx, new_entry);
-            } else if (idx - offset) + 1 == self.piece_table[entry_idx].length {
+            } else if idx - offset == self.piece_table[entry_idx].length {
                 let new_entry = PieceTableEntry {
                     buffer: PieceTableBuffers::Add,
                     start_index: self.add_buffer.len(),
@@ -112,13 +110,14 @@ impl PieceTable {
                 };
                 self.piece_table.insert(entry_idx + 1, new_entry);
             } else {
+                // Insert must split exist entry, create new entry, and insert it in between
                 let split_entry = PieceTableEntry {
                     buffer: self.piece_table[entry_idx].buffer,
                     start_index: self.piece_table[entry_idx].start_index,
                     length: idx - offset,
                 };
 
-                self.piece_table[entry_idx].start_index = idx - offset;
+                self.piece_table[entry_idx].start_index += split_entry.length;
                 self.piece_table[entry_idx].length -= split_entry.length;
                 self.piece_table.insert(entry_idx, split_entry);
 
@@ -130,66 +129,75 @@ impl PieceTable {
                 self.piece_table.insert(entry_idx + 1, new_entry);
             }
         }
+        // Add new character to line add buffer and update length
         self.add_buffer.push(c);
         self.length += 1;
 
-        if c == '\n' {
-            let mut ln_idx = 0;
-            while self.line_starts[ln_idx] < idx && ln_idx < self.line_starts.len() {
-                ln_idx += 1;
-            }
-
-            self.line_starts.insert(ln_idx, idx);
-            ln_idx += 1;
-
-            while ln_idx < self.line_starts.len() {
+        // Update line start indices 
+        let mut ln_idx = 0;
+        while ln_idx < self.line_starts.len() {
+            if idx < self.line_starts[ln_idx] {
                 self.line_starts[ln_idx] += 1;
             }
+            ln_idx += 1;
+        }
+
+        // If new character is newline, then insert its index into line_starts
+        if c == '\n' {
+            let mut ln_idx = 0;
+            while ln_idx < self.line_starts.len() && self.line_starts[ln_idx] < idx {
+                ln_idx += 1;
+            }
+            self.line_starts.insert(ln_idx, idx);
         }
     }
 
     pub fn delete(&mut self, idx: usize) {
-        let entry_idx = self.find_entry(idx);
-
-        let mut offset: usize = 0;
-        if entry_idx > 0 {
-            for i in 0..entry_idx {
-                offset += self.piece_table[i].length;
+        assert!(idx < self.length, "PieceTable::delete, Attempted to delete {idx}, when buffer length is {}", self.length);
+        if let Some(entry_idx) = self.find_entry(idx) {
+            let mut offset: usize = 0;
+            if entry_idx > 0 {
+                for i in 0..entry_idx {
+                    offset += self.piece_table[i].length;
+                }
             }
-        }
-
-        if (idx - offset) == 0 {
-            self.piece_table[entry_idx].start_index += 1;
-            self.piece_table[entry_idx].length -= 1;
-            if self.piece_table[entry_idx].length == 0 {
-                self.piece_table.remove(entry_idx);
+    
+            if (idx - offset) == 0 {
+                self.piece_table[entry_idx].start_index += 1;
+                self.piece_table[entry_idx].length -= 1;
+                if self.piece_table[entry_idx].length == 0 {
+                    self.piece_table.remove(entry_idx);
+                }
+            } else if (idx - offset) + 1 == self.piece_table[entry_idx].length {
+                self.piece_table[entry_idx].length -= 1;
+            } else {
+                let new_entry = PieceTableEntry {
+                    buffer: self.piece_table[entry_idx].buffer,
+                    start_index: self.piece_table[entry_idx].start_index,
+                    length: idx - offset,
+                };
+    
+                self.piece_table[entry_idx].start_index += (idx - offset) + 1;
+                self.piece_table[entry_idx].length -= new_entry.length + 1;
+                self.piece_table.insert(entry_idx, new_entry)
             }
-        } else if (idx - offset) + 1 == self.piece_table[entry_idx].length {
-            self.piece_table[entry_idx].length -= 1;
-        } else {
-            let new_entry = PieceTableEntry {
-                buffer: self.piece_table[entry_idx].buffer,
-                start_index: self.piece_table[entry_idx].start_index,
-                length: idx - offset,
-            };
-
-            self.piece_table[entry_idx].start_index += (idx - offset) + 1;
-            self.piece_table[entry_idx].length -= new_entry.length + 1;
-            self.piece_table.insert(entry_idx, new_entry)
+            self.length -= 1;
         }
-        self.length -= 1;
     }
 
-    fn find_entry(&self, idx: usize) -> usize {
-        let mut entry_idx: usize = 0;
-        let mut total: usize = 0;
-
-        while total + self.piece_table[entry_idx].length <= idx {
-            total += self.piece_table[entry_idx].length;
-            entry_idx += 1;
+    fn find_entry(&self, idx: usize) -> Option<usize> {
+        if idx == self.length {
+            None
+        } else {
+            let mut entry_idx: usize = 0;
+            let mut total: usize = 0;
+    
+            while entry_idx < self.piece_table.len() && total + self.piece_table[entry_idx].length <= idx {
+                total += self.piece_table[entry_idx].length;
+                entry_idx += 1;
+            }
+            Some(entry_idx)
         }
-
-        entry_idx
     }
 
     pub fn len(&self) -> usize {
@@ -202,11 +210,19 @@ impl PieceTable {
 
     pub fn get_line(&self, line_number: usize) -> Option<Vec<char>> {
         if line_number + 1 < self.line_starts.len() {
-            Some((self.line_starts[line_number]..(self.line_starts[line_number+1]-1)).filter_map(|i| self.index(i)).collect())
-        } else if line_number < self.line_starts.len() {
-            Some((self.line_starts[line_number]..self.length).filter_map(|i| self.index(i)).collect())
+            Some((self.line_starts[line_number]..(self.line_starts[line_number+1]-1)).map(|i| self.index(i)).collect())
+//        } else if line_number < self.line_starts.len() {
+//            Some((self.line_starts[line_number]..self.length).filter_map(|i| self.index(i)).collect())
         } else {
             return None
+        }
+    }
+
+    pub fn get_line_offset(&self, line_number: usize) -> Option<usize> {
+        if line_number + 1 < self.line_starts.len() {
+            Some(self.line_starts[line_number])
+        } else {
+            None
         }
     }
     
@@ -221,7 +237,7 @@ impl PieceTable {
     }
 
     pub fn lines(&self) -> usize {
-        self.line_starts.len()
+        self.line_starts.len() - 1
     }
 }
 

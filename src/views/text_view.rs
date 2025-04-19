@@ -4,12 +4,13 @@ use crate::views::View;
 
 #[derive(Debug, Copy, Clone)]
 pub enum TextCommand {
-    CursorUp(u16),
-    CursorDown(u16),
+    CursorUp(u16), // For cursor up, down, left, right u16 defines how many spaces to move in that
+    CursorDown(u16), // direction
     CursorLeft(u16),
     CursorRight(u16),
-    JumpTop,
-    JumpBottom,
+    JumpTop(u16),
+    JumpBottom(u16),
+    Insert(char),
 }
 
 pub struct TextView {
@@ -105,22 +106,24 @@ impl TextView {
                 }
             }
             TextCommand::CursorDown(y) => {
-                if self.cursor.row + y < self.sz.row {
-                    self.cursor.row += y;
-                } else {
-                    self.offset.row += 1;
-                    if ((self.offset.row + self.cursor.row + 1) as usize) >= self.text.lines() {
-                        self.offset.row = (self.text.lines() - (self.sz.row as usize) - 1) as u16;
-                    }
-                    self.cursor.row = self.sz.row - 1;
-                    self.refresh_text();
-                }
-                
-                if self.cursor.col >= 5 + self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() as u16 {
-                    if self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() > 0 {
-                        self.cursor.col = 4 + self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() as u16;
+                if ((self.cursor.row + self.offset.row + 1) as usize) < self.text.lines() {
+                    if self.cursor.row + y < self.sz.row {
+                        self.cursor.row += y;
                     } else {
-                        self.cursor.col = 5;
+                        self.offset.row += 1;
+                        if ((self.offset.row + self.cursor.row + 1) as usize) >= self.text.lines() {
+                            self.offset.row = (self.text.lines() - (self.sz.row as usize) - 1) as u16;
+                        }
+                        self.cursor.row = self.sz.row - 1;
+                        self.refresh_text();
+                    }
+                    
+                    if self.cursor.col >= 5 + self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() as u16 {
+                        if self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() > 0 {
+                            self.cursor.col = 4 + self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() as u16;
+                        } else {
+                            self.cursor.col = 5;
+                        }
                     }
                 }
             }
@@ -144,7 +147,7 @@ impl TextView {
                     }
                 }
             }
-            TextCommand::JumpTop => {
+            TextCommand::JumpTop(_reps) => {
                 self.cursor.row = 0;
                 self.offset.row = 0;
                 
@@ -157,7 +160,7 @@ impl TextView {
                 }
                 self.refresh_text();
             },
-            TextCommand::JumpBottom => {
+            TextCommand::JumpBottom(_reps) => {
                 if self.text.lines() > (self.sz.row as usize) {
                     self.offset.row = (self.text.lines() - (self.sz.row as usize) - 1) as u16;
                     self.cursor.row = self.sz.row - 1;
@@ -174,6 +177,21 @@ impl TextView {
                 }
                 self.refresh_text();
                 
+            },
+            TextCommand::Insert(c) => {
+                if let Some(line_offset) = self.text.get_line_offset((self.offset.row + self.cursor.row) as usize) {
+                    let idx = line_offset + (self.offset.col + self.cursor.col - 5) as usize;
+                    self.text.insert(idx, c);
+
+                    if c == '\n' {
+                        self.cursor.row += 1;
+                        self.cursor.col = 5;
+                    } else {
+                        self.cursor.col += 1;
+                    }
+
+                    self.refresh_text();
+                }
             }
         }
     }
