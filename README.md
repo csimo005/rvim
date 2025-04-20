@@ -12,11 +12,11 @@ A rust based reimplementation of the basics of vim, made as a personal learning 
 - [x] Scroll up and down the lines of the file
 - [x] Scroll across the lines of the files
 - [ ] Jump and arbitary number of characters in any direction
-- [x] Jump to the start or end of the file
+- [ ] Jump to the start or end of the file
 - [ ] Basic search functionality (literal match only)
 
 ### File Editing
-- [ ] Insert inside the string
+- [x] Insert inside the string
 - [ ] replace one or more characters
 - [ ] Copy, Cut, Paste
 - [ ] Writing and Overwriting files
