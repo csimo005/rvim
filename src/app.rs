@@ -31,10 +31,16 @@ pub struct App {
 
 impl App {
     pub fn new(cfg: Config) -> Self {
-        let text_view = match cfg.fname {
-            Some(fname) => TextView::new(&fs::read_to_string(fname).unwrap()),
-            None => TextView::new(""),
+        let text = match cfg.fname {
+            Some(fname) => {
+                let mut txt = fs::read_to_string(fname).unwrap();
+                txt.pop();
+                txt
+            }
+            None => "".to_string(),
         };
+
+        let text_view = TextView::new(&text);
 
         let win_sz = match terminal_size() {
             Ok(res) => res,

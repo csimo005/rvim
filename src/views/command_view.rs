@@ -2,6 +2,7 @@ use termion::event::Key;
 
 use std::collections::VecDeque;
 
+use crate::interface::CursorStyle;
 use crate::position::Position;
 use crate::views::View;
 
@@ -122,12 +123,22 @@ impl CommandView {
                     self.cmd.drain(0..1);
                 },
                 Key::Char('i') => {
+                    self.txt_cmds.push_front(TextCommand::SetCursorStyle(CursorStyle::Bar));
                     self.state = CommandViewModes::InsertMode;
                     self.refresh_view();
                     self.cmd.drain(0..1);
                     return;
                 }
-                _ => {
+                Key::Char('a') => {
+                    self.txt_cmds.push_front(TextCommand::SetCursorStyle(CursorStyle::Bar));
+                    self.txt_cmds.push_front(TextCommand::CursorRight(1));
+                    self.state = CommandViewModes::InsertMode;
+                    self.refresh_view();
+                    self.cmd.drain(0..1);
+                    return;
+                }
+                k => {
+                    eprintln!("Unhandled input in normal mode: {:?}", k);
                     self.cmd.drain(0..1);
                 }
             }
@@ -170,6 +181,8 @@ impl CommandView {
                         match self.cmd[0] {
                             Key::Esc => {
                                 self.cmd.drain(0..1);
+                                self.txt_cmds.push_front(TextCommand::SetCursorStyle(CursorStyle::Block));
+                                self.txt_cmds.push_front(TextCommand::CursorLeft(1));
                                 self.state = CommandViewModes::NormalMode;
                                 self.refresh_view();
                                 break;
@@ -177,8 +190,9 @@ impl CommandView {
                             Key::Char(c) => {
                                 self.txt_cmds.push_front(TextCommand::Insert(c));
                                 self.cmd.drain(0..1);
-                            }
-                            _ => {
+                            },
+                            k => {
+                                eprintln!("Unhandled input in insert mode: {:?}", k);
                                 self.cmd.drain(0..1);
                             },
                         }
@@ -291,5 +305,9 @@ impl View for CommandView {
 
     fn get_cursor_pos(&self) -> Position {
         self.cursor
+    }
+
+    fn get_cursor_style(&self) -> CursorStyle {
+        CursorStyle::Block
     }
 }

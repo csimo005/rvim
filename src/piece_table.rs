@@ -29,17 +29,20 @@ impl PieceTable {
                        None
                    }
         )).collect();
+        eprintln!("{:?}, {:?}", line_starts.len(), line_starts);
 
+        let original_buffer: Vec<_> = original_buffer.chars().collect();
+        let buffer_length = original_buffer.len();
         let og_entry = PieceTableEntry {
             buffer: PieceTableBuffers::Original,
             start_index: 0,
-            length: original_buffer.len(),
+            length: buffer_length,
         };
         PieceTable {
-            original_buffer: original_buffer.chars().collect(),
+            original_buffer,
             add_buffer: Vec::<char>::new(),
             piece_table: vec![og_entry],
-            length: original_buffer.len(),
+            length: buffer_length,
             line_starts
         }
     }
@@ -211,15 +214,15 @@ impl PieceTable {
     pub fn get_line(&self, line_number: usize) -> Option<Vec<char>> {
         if line_number + 1 < self.line_starts.len() {
             Some((self.line_starts[line_number]..(self.line_starts[line_number+1]-1)).map(|i| self.index(i)).collect())
-//        } else if line_number < self.line_starts.len() {
-//            Some((self.line_starts[line_number]..self.length).filter_map(|i| self.index(i)).collect())
+        } else if line_number < self.line_starts.len() {
+            Some((self.line_starts[line_number]..self.length).map(|i| self.index(i)).collect())
         } else {
             return None
         }
     }
 
     pub fn get_line_offset(&self, line_number: usize) -> Option<usize> {
-        if line_number + 1 < self.line_starts.len() {
+        if line_number < self.line_starts.len() {
             Some(self.line_starts[line_number])
         } else {
             None
@@ -227,9 +230,11 @@ impl PieceTable {
     }
     
     pub fn get_line_length(&self, line_number: usize) -> Option<usize> {
+        eprintln!("{:?}, {:?}", line_number, self.line_starts.len());
         if line_number + 1 < self.line_starts.len() {
             Some(self.line_starts[line_number+1] - self.line_starts[line_number] - 1)
         } else if line_number < self.line_starts.len() {
+            eprintln!("{:?}, {:?}, {:?}", line_number, self.length, self.line_starts[line_number]);
             Some(self.length - self.line_starts[line_number] + 1)
         } else {
             return None
@@ -237,7 +242,7 @@ impl PieceTable {
     }
 
     pub fn lines(&self) -> usize {
-        self.line_starts.len() - 1
+        self.line_starts.len()
     }
 }
 

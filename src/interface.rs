@@ -14,7 +14,16 @@ pub struct Interface {
     stdout: AlternateScreen<RawTerminal<Stdout>>,
     io_rx: mpsc::Receiver<termion::event::Key>,
     cursor: Position,
+    cursor_style: CursorStyle,
 }
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum CursorStyle {
+    Block,
+    Bar,
+    Underline,
+}
+
 
 impl Interface {
     pub fn new() -> Self {
@@ -37,13 +46,14 @@ impl Interface {
             }
         });
 
-        Self { stdout, io_rx, cursor: Position{row: 0, col: 0} }
+        Self { stdout, io_rx, cursor: Position{row: 0, col: 0}, cursor_style: CursorStyle::Block}
     }
 
     pub fn set_cursor(&mut self, pos: Position, view: &impl View) {
         let cursor = view.get_cursor_pos();
         self.cursor.row = pos.row + cursor.row;
         self.cursor.col = pos.col + cursor.col;
+        self.cursor_style = view.get_cursor_style();
     }
 
     pub fn draw(
@@ -67,6 +77,11 @@ impl Interface {
             }*/
         }
         write!(self.stdout, "{}{}", termion::cursor::Goto(self.cursor.col + 1, self.cursor.row + 1), termion::cursor::Show)?;
+        match self.cursor_style {
+            CursorStyle::Block => write!(self.stdout, "{}", termion::cursor::BlinkingBlock)?,
+            CursorStyle::Bar => write!(self.stdout, "{}", termion::cursor::BlinkingBar)?,
+            CursorStyle::Underline => write!(self.stdout, "{}", termion::cursor::BlinkingUnderline)?,
+        };
         self.stdout.flush()?;
 
         Ok(())

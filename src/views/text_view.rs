@@ -1,3 +1,4 @@
+use crate::interface::CursorStyle;
 use crate::piece_table::PieceTable;
 use crate::position::Position;
 use crate::views::View;
@@ -11,6 +12,7 @@ pub enum TextCommand {
     JumpTop(u16),
     JumpBottom(u16),
     Insert(char),
+    SetCursorStyle(CursorStyle),
 }
 
 pub struct TextView {
@@ -20,6 +22,7 @@ pub struct TextView {
     sz: Position,
     view: Vec<char>,
     updates: Vec<bool>,
+    cursor_style: CursorStyle,
 }
 
 impl TextView {
@@ -31,6 +34,7 @@ impl TextView {
             sz: Position { row: 0, col: 0 },
             view: Vec::<char>::new(),
             updates: Vec::<bool>::new(),
+            cursor_style: CursorStyle::Block,
         }
     }
 
@@ -137,13 +141,22 @@ impl TextView {
             TextCommand::CursorRight(x) => {
                 self.cursor.col += x;
                 if self.cursor.col >= self.sz.col {
+                    self.offset.col += self.cursor.col - self.sz.col + 1;
                     self.cursor.col = self.sz.col - 1;
                 }
-                if self.cursor.col >= 5 + self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() as u16 {
-                    if self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() > 0 {
-                        self.cursor.col = 4 + self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() as u16;
+
+                let line_length = self.text.get_line_length((self.cursor.row + self.offset.row) as usize).unwrap() as u16;
+                if self.cursor_style == CursorStyle::Block && (self.offset.col + self.cursor.col - 5) >= line_length {
+                    if self.cursor.col + 1 == self.sz.col {
+                        self.offset.col = line_length - self.cursor.col - 1;
                     } else {
-                        self.cursor.col = 5;
+                        self.cursor.col = 5 + line_length - 1;
+                    }
+                } else if self.cursor_style == CursorStyle::Bar && (self.offset.col + self.cursor.col - 5) > line_length {
+                    if self.cursor.col + 1 == self.sz.col {
+                        self.offset.col = line_length - self.cursor.col;
+                    } else {
+                        self.cursor.col = 5 + line_length;
                     }
                 }
             }
@@ -192,6 +205,9 @@ impl TextView {
 
                     self.refresh_text();
                 }
+            },
+            TextCommand::SetCursorStyle(sty) => {
+                self.cursor_style = sty;
             }
         }
     }
@@ -232,5 +248,9 @@ impl View for TextView {
 
     fn get_cursor_pos(&self) -> Position {
         self.cursor
+    }
+
+    fn get_cursor_style(&self) -> CursorStyle {
+        self.cursor_style
     }
 }

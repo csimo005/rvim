@@ -1,3 +1,4 @@
+use crate::interface::CursorStyle;
 use crate::position::Position;
 
 pub mod command_view;
@@ -9,4 +10,5 @@ pub trait View {
     fn get_view(&self) -> Vec<char>;
     fn get_updates(&mut self) -> Vec<bool>;
     fn get_cursor_pos(&self) -> Position;
+    fn get_cursor_style(&self) -> CursorStyle;
 }
