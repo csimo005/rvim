@@ -137,6 +137,10 @@ impl CommandView {
                     self.cmd.drain(0..1);
                     return;
                 }
+                Key::Char('x') => {
+                    self.txt_cmds.push_front(TextCommand::Delete);
+                    self.cmd.drain(0..1);
+                }
                 k => {
                     eprintln!("Unhandled input in normal mode: {:?}", k);
                     self.cmd.drain(0..1);
@@ -191,6 +195,10 @@ impl CommandView {
                                 self.txt_cmds.push_front(TextCommand::Insert(c));
                                 self.cmd.drain(0..1);
                             },
+                            Key::Backspace => {
+                                self.txt_cmds.push_front(TextCommand::Delete);
+                                self.cmd.drain(0..1);
+                            }
                             k => {
                                 eprintln!("Unhandled input in insert mode: {:?}", k);
                                 self.cmd.drain(0..1);

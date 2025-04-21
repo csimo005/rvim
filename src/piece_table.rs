@@ -29,7 +29,6 @@ impl PieceTable {
                        None
                    }
         )).collect();
-        eprintln!("{:?}, {:?}", line_starts.len(), line_starts);
 
         let original_buffer: Vec<_> = original_buffer.chars().collect();
         let buffer_length = original_buffer.len();
@@ -157,34 +156,51 @@ impl PieceTable {
 
     pub fn delete(&mut self, idx: usize) {
         assert!(idx < self.length, "PieceTable::delete, Attempted to delete {idx}, when buffer length is {}", self.length);
-        if let Some(entry_idx) = self.find_entry(idx) {
-            let mut offset: usize = 0;
-            if entry_idx > 0 {
-                for i in 0..entry_idx {
-                    offset += self.piece_table[i].length;
+        
+        let entry_idx = self.find_entry(idx).unwrap(); // Will always succeed since idx < self.length
+        let ch = self.index(idx);
+
+        let mut offset: usize = 0;
+        if entry_idx > 0 {
+            for i in 0..entry_idx {
+                offset += self.piece_table[i].length;
+            }
+        }
+
+        if (idx - offset) == 0 {
+            self.piece_table[entry_idx].start_index += 1;
+            self.piece_table[entry_idx].length -= 1;
+            if self.piece_table[entry_idx].length == 0 {
+                self.piece_table.remove(entry_idx);
+            }
+        } else if (idx - offset) + 1 == self.piece_table[entry_idx].length {
+            self.piece_table[entry_idx].length -= 1;
+        } else {
+            let new_entry = PieceTableEntry {
+                buffer: self.piece_table[entry_idx].buffer,
+                start_index: self.piece_table[entry_idx].start_index,
+                length: idx - offset,
+            };
+
+            self.piece_table[entry_idx].start_index += (idx - offset) + 1;
+            self.piece_table[entry_idx].length -= new_entry.length + 1;
+            self.piece_table.insert(entry_idx, new_entry)
+        }
+        self.length -= 1;
+
+        if ch == '\n' {
+            for i in 0..self.line_starts.len() { 
+                if idx + 1 == self.line_starts[i] {
+                    self.line_starts.remove(i);
+                    break;
                 }
             }
-    
-            if (idx - offset) == 0 {
-                self.piece_table[entry_idx].start_index += 1;
-                self.piece_table[entry_idx].length -= 1;
-                if self.piece_table[entry_idx].length == 0 {
-                    self.piece_table.remove(entry_idx);
-                }
-            } else if (idx - offset) + 1 == self.piece_table[entry_idx].length {
-                self.piece_table[entry_idx].length -= 1;
-            } else {
-                let new_entry = PieceTableEntry {
-                    buffer: self.piece_table[entry_idx].buffer,
-                    start_index: self.piece_table[entry_idx].start_index,
-                    length: idx - offset,
-                };
-    
-                self.piece_table[entry_idx].start_index += (idx - offset) + 1;
-                self.piece_table[entry_idx].length -= new_entry.length + 1;
-                self.piece_table.insert(entry_idx, new_entry)
+        }
+
+        for i in 0..self.line_starts.len() {
+            if idx < self.line_starts[i] {
+                self.line_starts[i] -= 1;
             }
-            self.length -= 1;
         }
     }
 
@@ -230,11 +246,9 @@ impl PieceTable {
     }
     
     pub fn get_line_length(&self, line_number: usize) -> Option<usize> {
-        eprintln!("{:?}, {:?}", line_number, self.line_starts.len());
         if line_number + 1 < self.line_starts.len() {
             Some(self.line_starts[line_number+1] - self.line_starts[line_number] - 1)
         } else if line_number < self.line_starts.len() {
-            eprintln!("{:?}, {:?}, {:?}", line_number, self.length, self.line_starts[line_number]);
             Some(self.length - self.line_starts[line_number] + 1)
         } else {
             return None

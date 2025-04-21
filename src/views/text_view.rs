@@ -11,8 +11,9 @@ pub enum TextCommand {
     CursorRight(u16),
     JumpTop(u16),
     JumpBottom(u16),
-    Insert(char),
     SetCursorStyle(CursorStyle),
+    Insert(char),
+    Delete,
 }
 
 pub struct TextView {
@@ -191,6 +192,9 @@ impl TextView {
                 self.refresh_text();
                 
             },
+            TextCommand::SetCursorStyle(sty) => {
+                self.cursor_style = sty;
+            }
             TextCommand::Insert(c) => {
                 if let Some(line_offset) = self.text.get_line_offset((self.offset.row + self.cursor.row) as usize) {
                     let idx = line_offset + (self.offset.col + self.cursor.col - 5) as usize;
@@ -206,8 +210,46 @@ impl TextView {
                     self.refresh_text();
                 }
             },
-            TextCommand::SetCursorStyle(sty) => {
-                self.cursor_style = sty;
+            TextCommand::Delete => {
+                if let Some(line_offset) = self.text.get_line_offset((self.offset.row + self.cursor.row) as usize) {
+                    let idx = line_offset + (self.offset.col + self.cursor.col - 5) as usize;
+                    
+                    match self.cursor_style {
+                        CursorStyle::Underline => panic!("Recieved TextCommand::Delete while cursor style is underscored"),
+                        CursorStyle::Block => self.text.delete(idx),
+                        CursorStyle::Bar => {
+                            if idx > 0 {
+                                if self.cursor.col == 5 && self.offset.col == 0 {
+                                    let prev_line_length = self.text.get_line_length((self.cursor.row + self.offset.row - 1) as usize).unwrap() as u16;
+                                    self.text.delete(idx - 1);
+
+                                    if self.cursor.row == 0 {
+                                        self.offset.row -= 1;
+                                    } else {
+                                        self.cursor.row -= 1; 
+                                    }
+
+                                    if prev_line_length + 5 < self.sz.col {
+                                        self.cursor.col = prev_line_length + 5;
+                                        self.offset.col = 0
+                                    } else {
+                                        self.cursor.col = self.sz.col - 1;
+                                        self.offset.col = prev_line_length - self.sz.col + 4;
+                                    }
+                                } else {
+                                    self.text.delete(idx - 1);
+                                    self.cursor.col -= 1;
+                                    if self.cursor.col < 5 {
+                                        self.cursor.col = 5;
+                                        self.offset.col -= 1;
+                                    }
+                                }
+                            }
+                        },
+                    };
+                    self.refresh_text();
+                }
+
             }
         }
     }
